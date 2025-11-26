@@ -8,7 +8,7 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "bookmark-db"
-database_id = "06e59c1e-eba9-4b20-8543-461c9599f971"  # 替换为你的 D1 数据库 ID
+database_id = "5c58c80e-a5d1-4cbe-ab04-c3a27985e678"  # 替换为你的 D1 数据库 ID
 
 # R2 存储桶配置（用于备份功能，可选）
 #

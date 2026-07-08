@@ -1,7 +1,7 @@
 <template>
-  <div class="app" :class="{ 'efficient-mode': displayMode === 'efficient' }">
+  <div class="app efficient-mode">
     <!-- Header -->
-    <header class="app-header" :class="{ 'efficient-mode': displayMode === 'efficient' }">
+    <header class="app-header efficient-mode">
       <div class="header-content">
          <!-- 左上角：汉堡菜单按钮 -->
          <div class="header-left">
@@ -35,7 +35,7 @@
            :avatar-url="avatarUrl"
            :username="authUsername"
            :is-edit-mode="isEditMode"
-           @settings="settingsPage.open()"
+           @settings="navigateToSettings()"
            @edit="isEditMode = true"
            @logout="handleLogout()"
           />
@@ -106,7 +106,7 @@
         <button 
           v-if="isAuthenticated" 
           class="btn btn-primary" 
-          @click="settingsPage.open(); setActiveSettingsTab('data')" 
+          @click="navigateToSettings('data')" 
           style="margin-top: 1.5rem;"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width: 18px; height: 18px;">
@@ -118,7 +118,7 @@
         </button>
       </div>
       
-      <div v-else class="main-layout" :class="{ 'efficient-mode': displayMode === 'efficient' }">
+      <div v-else class="main-layout efficient-mode">
         <!-- Sidebar Backdrop -->
         <div 
           v-if="sidebarOpen" 
@@ -149,12 +149,11 @@
          />
         
         <!-- Bookmarks Content -->
-        <div class="bookmarks-area" :class="{ 'efficient-mode': displayMode === 'efficient' }">
+        <div class="bookmarks-area efficient-mode">
           <!-- Breadcrumbs -->
           <div 
             v-if="selectedCategoryId !== ALL_CATEGORIES_ID && !searchQuery" 
-            class="breadcrumbs-container"
-            :class="{ 'efficient-mode': displayMode === 'efficient' }"
+            class="breadcrumbs-container efficient-mode"
           >
             <button 
               class="breadcrumb-item root-item"
@@ -193,7 +192,7 @@
               :is-batch-mode="isBatchMode"
               :selected-ids="selectedIds"
               :selected-category-ids="selectedCategoryIds"
-              :display-mode="displayMode"
+
               @select-category="handleSelectCategory"
               @edit-category="handleEditCategory"
               @delete-category="handleDeleteCategory"
@@ -254,7 +253,7 @@
       :show-search="showSearch"
       :random-wallpaper="randomWallpaper"
       :wallpaper-api="wallpaperApi"
-      :display-mode="displayMode"
+
       :hide-empty-categories="hideEmptyCategories"
       :public-mode="publicMode"
       :custom-title="customTitle"
@@ -263,15 +262,14 @@
       :footer-content="footerContent"
       :active-settings-tab="activeSettingsTab"
       :empty-category-count="emptyCategoryCount"
+      @close="navigateFromSettings"
       @action="handleSettingsAction"
       @set-theme-mode="setThemeMode"
-      @set-theme-style="setThemeStyle"
       @toggle-search="toggleSearch"
       @toggle-hide-empty="toggleHideEmptyCategories"
       @toggle-public-mode="togglePublicMode"
       @toggle-random-wallpaper="toggleRandomWallpaper"
       @update-wallpaper-api="updateWallpaperApi"
-      @set-display-mode="setDisplayMode"
       @update-title="updateCustomTitle"
       @update-footer="updateFooterContent"
       @editTitle="handleEditTitle"
@@ -285,11 +283,15 @@
     
     <!-- Toast Notifications -->
     <ToastNotification ref="toast" />
+
+    <!-- Hidden router-view for vue-router -->
+    <router-view v-show="false" />
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from './composables/useAuth'
 import { useBookmarks } from './composables/useBookmarks'
 import { useBatchOperations } from './composables/useBatchOperations'
@@ -321,6 +323,25 @@ import AvatarMenu from './components/AvatarMenu.vue'
 import { useAI } from './composables/useAI'
 
 const { isAuthenticated, username: authUsername, logout, onAuthChange } = useAuth()
+
+const route = useRoute()
+const router = useRouter()
+
+// 路由状态
+const isSettingsRoute = computed(() => route.name === 'settings')
+
+const navigateToSettings = (tab) => {
+  if (tab) setActiveSettingsTab(tab)
+  router.push({ name: 'settings', query: tab ? { tab } : {} })
+}
+
+const navigateFromSettings = () => {
+  const query = {}
+  if (selectedCategoryId.value !== ALL_CATEGORIES_ID) {
+    query.category = selectedCategoryId.value
+  }
+  router.push({ name: 'home', query })
+}
 const { aiEnabled, checkAIAvailability } = useAI()
 const { loadSettingsFromDB: loadSearchEnginesSettings } = useSearchEngines()
 const {
@@ -341,8 +362,8 @@ const {
   getEmptyCategories,
   cleanupEmptyCategories
 } = useBookmarks()
-const { themeMode, themeStyle, isDark, setThemeMode, setThemeStyle, toggleTheme, loadThemeFromDB } = useTheme()
-const { showSearch, hideEmptyCategories, customTitle, footerContent, activeSettingsTab, publicMode, randomWallpaper, wallpaperApi, displayMode, avatarUrl, toggleSearch, toggleHideEmptyCategories, togglePublicMode, updateCustomTitle, updateFooterContent, setActiveSettingsTab, toggleRandomWallpaper, updateWallpaperApi, setDisplayMode, updateAvatarUrl, applyWallpaper, loadSettingsFromDB } = useSettings()
+const { themeMode, isDark, setThemeMode, toggleTheme, loadThemeFromDB } = useTheme()
+const { showSearch, hideEmptyCategories, customTitle, footerContent, activeSettingsTab, publicMode, randomWallpaper, wallpaperApi, avatarUrl, toggleSearch, toggleHideEmptyCategories, togglePublicMode, updateCustomTitle, updateFooterContent, setActiveSettingsTab, toggleRandomWallpaper, updateWallpaperApi, updateAvatarUrl, applyWallpaper, loadSettingsFromDB } = useSettings()
 const { setToastInstance, success: toastSuccess, error: toastError } = useToast()
 const {
   isBatchMode,
@@ -381,6 +402,31 @@ const ALL_CATEGORIES_ID = 'all'
 const SCROLL_OFFSET = 140
 const PROGRAMMATIC_SCROLL_TIMEOUT = 600
 let scrollResetTimer = null
+
+// 从 URL 读取分类参数
+watch(() => route.query.category, (catId) => {
+  if (catId && categories.value.some(c => String(c.id) === String(catId))) {
+    const id = Number(catId)
+    if (selectedCategoryId.value !== id) {
+      selectedCategoryId.value = id
+    }
+  } else if (!catId && selectedCategoryId.value !== ALL_CATEGORIES_ID) {
+    selectedCategoryId.value = ALL_CATEGORIES_ID
+  }
+}, { immediate: true })
+
+// 监听设置页路由变化
+watch(() => route.name, (name) => {
+  if (name === 'settings') {
+    settingsPage.value?.open()
+    // 从 query 中读取 tab
+    if (route.query.tab) {
+      setActiveSettingsTab(route.query.tab)
+    }
+  } else {
+    settingsPage.value?.close()
+  }
+}, { immediate: true })
 
 const isDesktop = ref(typeof window !== 'undefined' ? window.innerWidth >= 1025 : true)
 const sidebarOpen = ref(false)
@@ -544,6 +590,12 @@ const handleSelectCategory = (categoryId) => {
   selectedCategoryId.value = categoryId
   sidebarOpen.value = false
   scrollToTop()
+  // 同步分类选择到 URL query 参数
+  const query = {}
+  if (categoryId !== ALL_CATEGORIES_ID) {
+    query.category = categoryId
+  }
+  router.replace({ name: route.name || 'home', query })
 }
 
 const handleScrollToBookmark = (bookmark) => {
@@ -598,6 +650,10 @@ const handleResize = () => {
 
 const handleSettingsTabChange = (tab) => {
   setActiveSettingsTab(tab)
+  // 同步 tab 到 URL query
+  if (route.name === 'settings') {
+    router.replace({ name: 'settings', query: { tab } })
+  }
   // 切换到数据管理标签时检查空分类
   if (tab === 'data' && isAuthenticated.value) {
     checkEmptyCategories()
@@ -718,14 +774,14 @@ const handleSettingsAction = (action) => {
       break
     case 'addBookmark':
       // 其他操作需要关闭设置页面
-      settingsPage.value.close()
+      navigateFromSettings()
       setTimeout(() => {
         bookmarkDialog.value.open()
       }, 300)
       break
     case 'addCategory':
       // 其他操作需要关闭设置页面
-      settingsPage.value.close()
+      navigateFromSettings()
       setTimeout(() => {
         handleAddCategory()
       }, 300)
